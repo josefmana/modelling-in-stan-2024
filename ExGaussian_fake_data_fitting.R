@@ -76,7 +76,7 @@ d0 <- ssrt_data_sim(N = 8, S = 1:18)
 ## SOME SANITY CHECKS ----
 
 # check for negative response times
-summary( d0$data$rt )
+summary(d0$data$rt)
 sum(d0$data$rt < 0, na.rm = T) / nrow(d0$data)
 
 # check success rates in STOP-SIGNAL trials
@@ -249,12 +249,12 @@ ppred <- lapply(
             
             df,
             ssrt_data_sim(
-              alpha_go = c(mu_go[i], 0),
-              alpha_stop = c(mu_stop[i], 0),
-              beta_go = c(sigma_go[i], 0),
-              beta_stop = c(sigma_stop[i], 0),
-              gamma_go = c(lambda_go[i], 0),
-              gamma_stop = c(lambda_stop[i], 0),
+              alpha_go = c(mu_go[j], 0),
+              alpha_stop = c(mu_stop[j], 0),
+              beta_go = c(sigma_go[j], 0),
+              beta_stop = c(sigma_stop[j], 0),
+              gamma_go = c(lambda_go[j], 0),
+              gamma_stop = c(lambda_stop[j], 0),
               tau_go = c(0, 0),
               tau_stop = c(0, 0),
               zeta_go = c(0, 0),
@@ -280,12 +280,4 @@ ppred <- lapply(
 # in the signal-respond trials, it makes little sense to "align" NAs between observed data and posterior predictions
 ppc_density(subset(d0$data, signal == 0), preds = ppred, cols = c("red4","lightpink"), tit = "GO TRIALS")
 ppc_density(subset(d0$data, signal == 1), preds = ppred, cols = c("blue4","lightblue"), tit = "SIGNAL-RESPOND TRIALS")
-
-# Interestingly, the GO trials distribution of subject #3 looks all-right in the posterior predictive checks despite the
-# third chain of the model non-converging. When compared chain #3 estimates to data-generating parameter values of
-# subject #3, it seems the model started (and finished as the estimate did not change during iterations) quite close to
-# the ground true:
-#   mu_go_est = -0.142658, mu_go_true = -0.1456987, mu_diff = -0.0030407
-#   sigma_go_est = -2.234380, sigma_go_true = -2.2318142, sigma_diff = 0.0025658
-#   lambda_go_est = -2.1961871, lambda_go_true = -2.135160, lambda_diff = 0.0610271
 

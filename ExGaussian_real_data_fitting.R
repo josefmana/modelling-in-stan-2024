@@ -8,12 +8,13 @@ options( mc.cores = parallel::detectCores() )
 
 library(here)
 library(tidyverse)
-library(brms) # for rexgaussian()
 library(bayesplot)
 library(cmdstanr)
 
 color_scheme_set("viridisA")
 theme_set( theme_bw(base_size = 14) )
+
+source("ExGaussian_fake_data_simulation.R") # read data generating function
 
 
 # DATA PRE-PROCESSING ----
@@ -119,3 +120,196 @@ for ( i in k ) for ( x in c("ctrl","exp") ) {
 # With current priors, model, and data, fitting IPN390 control condition block (k = "IPN390", x = "ctrl")
 # leads to relatively larger percentage of divergent transitions compared to other data
 # and occasional non-converging chain.
+
+
+## posterior prediction for densities ----
+ppc_density <- function(data, type, preds, cols, tit) lapply(
+  
+  names(preds),
+  function(i)
+    
+    cbind.data.frame(
+      subset(data, id == i & signal == type),
+      preds[[i]][ sample(1:4e3, 1e2), which( subset(data, id == i)$signal == type) ] %>% t()
+    )
+  
+) %>%
+  
+  do.call( rbind.data.frame, . ) %>%
+  pivot_longer( cols = c( "rt",as.character(1:100) ), names_to = "sample", values_to = "Response time (s)" ) %>%
+  mutate( source = if_else(sample == "rt", "observed", "predicted") ) %>%
+  
+  ggplot() +
+  aes(x = `Response time (s)`, colour = source, size = source, group = sample) +
+  geom_density() +
+  scale_size_manual( values = c(1.15,.15) ) +
+  scale_colour_manual(values = cols) +
+  facet_wrap( ~ id, ncol = 2, scales = "free" ) +
+  labs(
+    title = tit,
+    subtitle = "Thick lines represent observed data, thin lines represent model posterior predictions"
+  ) +
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank(),
+    plot.title = element_text(hjust = .5, face = "bold"),
+    plot.subtitle = element_text(hjust = .5)
+  )
+
+
+fit_con <- lapply(
+  
+  setNames( names(fit_many_indi), names(fit_many_indi) ),
+  function(x)
+    fit_many_indi[[x]]$ctrl
+  
+)
+
+fit_exp <- lapply(
+  
+  setNames( names(fit_many_indi), names(fit_many_indi) ),
+  function(x)
+    fit_many_indi[[x]]$exp
+  
+)
+
+estCON <- lapply(
+  
+  names(fit_con),
+  function(i)
+    
+    fit_con[[i]]$draws(format = "data.frame") %>%
+    select( starts_with("Int"), .chain, .iteration ) %>%
+    mutate(ID = i, .before = 1)
+  
+) %>%
+  
+  do.call( rbind.data.frame, . ) %>%
+  pivot_longer( starts_with("Int"), values_to = "value", names_to = "name" ) %>%
+  mutate( name = sub("Int_", "", ( sub("_0","",name) ) ) ) %>%
+  mutate( type = sub(".*_", "", name), parameter = sub("_.*", "", name), ID = as.character(ID) )
+
+estEXP <- lapply(
+  
+  names(fit_exp),
+  function(i)
+    
+    fit_exp[[i]]$draws(format = "data.frame") %>%
+    select( starts_with("Int"), .chain, .iteration ) %>%
+    mutate(ID = i, .before = 1)
+  
+) %>%
+  
+  do.call( rbind.data.frame, . ) %>%
+  pivot_longer( starts_with("Int"), values_to = "value", names_to = "name" ) %>%
+  mutate( name = sub("Int_", "", ( sub("_0","",name) ) ) ) %>%
+  mutate( type = sub(".*_", "", name), parameter = sub("_.*", "", name), ID = as.character(ID) )
+
+d2 <-
+  subset(d1, correct != "missed") %>%
+  mutate( signal = if_else(signal == "signal", 1, 0) )
+
+ppredCON <- lapply(
+  
+  setNames( names(fit_con), names(fit_con) ), # one for each participant
+  function(i) {
+    
+    # extract posterior draws for subject i
+    df <-
+      subset(estCON, ID == i) %>%
+      select(.chain, .iteration, name, value) %>%
+      pivot_wider(names_from = name, values_from = value)
+    
+    sapply(
+      
+      1:nrow(df),
+      function(j) {
+        
+        print( paste0("Participant ",i,", sample #",j) )
+        
+        return( with(
+          
+          df,
+          ssrt_data_sim(
+            alpha_go = c(mu_go[j], 0),
+            alpha_stop = c(mu_stop[j], 0),
+            beta_go = c(sigma_go[j], 0),
+            beta_stop = c(sigma_stop[j], 0),
+            gamma_go = c(lambda_go[j], 0),
+            gamma_stop = c(lambda_stop[j], 0),
+            tau_go = c(0, 0),
+            tau_stop = c(0, 0),
+            zeta_go = c(0, 0),
+            zeta_stop = c(0, 0),
+            epsilon_go = c(0, 0),
+            epsilon_stop = c(0, 0),
+            N = 1,
+            df = subset(d2, id == i & cond == "ctrl") %>% mutate(id = 1, trial = 1:nrow(.), rt = NA)
+          )$data$rt
+          
+        ) )
+        
+      }
+      
+    ) %>% t()
+    
+    
+  }
+)
+
+ppc_density(subset(d2, cond == "ctrl"), type = 0, preds = ppredCON, cols = c("red4","lightpink"), tit = "GO TRIALS")
+ppc_density(subset(d2, cond == "ctrl"), type = 1, preds = ppredCON, cols = c("blue4","lightblue"), tit = "SIGNAL-RESPOND TRIALS")
+
+
+
+
+ppredEXP <- lapply(
+  
+  setNames( names(fit_exp), names(fit_exp) ), # one for each participant
+  function(i) {
+    
+    # extract posterior draws for subject i
+    df <-
+      subset(estEXP, ID == i) %>%
+      select(.chain, .iteration, name, value) %>%
+      pivot_wider(names_from = name, values_from = value)
+    
+    sapply(
+      
+      1:nrow(df),
+      function(j) {
+        
+        print( paste0("Participant ",i,", sample #",j) )
+        
+        return( with(
+          
+          df,
+          ssrt_data_sim(
+            alpha_go = c(mu_go[j], 0),
+            alpha_stop = c(mu_stop[j], 0),
+            beta_go = c(sigma_go[j], 0),
+            beta_stop = c(sigma_stop[j], 0),
+            gamma_go = c(lambda_go[j], 0),
+            gamma_stop = c(lambda_stop[j], 0),
+            tau_go = c(0, 0),
+            tau_stop = c(0, 0),
+            zeta_go = c(0, 0),
+            zeta_stop = c(0, 0),
+            epsilon_go = c(0, 0),
+            epsilon_stop = c(0, 0),
+            N = 1,
+            df = subset(d2, id == i & cond == "exp") %>% mutate(id = 1, trial = 1:nrow(.), rt = NA)
+          )$data$rt
+          
+        ) )
+        
+      }
+      
+    ) %>% t()
+    
+    
+  }
+)
+
+ppc_density(subset(d2, cond == "exp"), type = 0, preds = ppredEXP, cols = c("red4","lightpink"), tit = "GO TRIALS")
+ppc_density(subset(d2, cond == "exp"), type = 1, preds = ppredEXP, cols = c("blue4","lightblue"), tit = "SIGNAL-RESPOND TRIALS")
