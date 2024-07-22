@@ -27,7 +27,7 @@ reco_plot <- function(data, col = "red", tit = "Go Runner") data %>%
   ggplot() +
   aes(x = value) +
   geom_histogram(fill = "grey50") +
-  geom_vline( aes( xintercept = data$true_value ), colour = col, linewidth = 1.2 ) +
+  geom_vline( aes( xintercept = true_value ), colour = col, linewidth = 1.2 ) +
   facet_grid2(ID ~ parameter, scales = "free", independent = T) +
   labs(title = tit) +
   theme( plot.title = element_text(face = "bold", size = 14, hjust = .5) )
