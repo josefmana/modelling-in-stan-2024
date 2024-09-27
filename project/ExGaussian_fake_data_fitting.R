@@ -22,7 +22,7 @@ library(ggh4x)
 color_scheme_set("viridisA")
 theme_set( theme_bw() )
 
-source("ExGaussian_fake_data_simulation.R") # read data generating function
+source( here("project","ExGaussian_fake_data_simulation.R") ) # read data generating function
 
 
 # UTILS ----
@@ -90,7 +90,7 @@ ppc_density <- function(data, preds, cols, tit) lapply(
 # Since the code runs for quite some time, it is possible to read results generated on my laptop instead of running
 # the analysis on yours (and the fitting section marked below by 'can be skipped' may be skipped):
 
-fit_many_indi <- readRDS( file = here("fake_data_fits.rds") )
+fit_many_indi <- readRDS( file = here("project", "fake_data_fits.rds") )
 
 
 ## ---- GENERATE DATA ----
@@ -129,7 +129,7 @@ d0$data %>%
 ## ---- FITTING ----
 
 # prepare the model
-mod_indi <- cmdstan_model( here("ExGaussian_individual.stan") ) 
+mod_indi <- cmdstan_model( here("project", "ExGaussian_individual.stan") ) 
 
 # function for manual initial values setting
 ifun <- function() list(
